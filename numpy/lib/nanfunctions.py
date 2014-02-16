@@ -10,6 +10,7 @@ Functions
 - `nanargmax` -- index of maximum non-NaN value
 - `nansum` -- sum of non-NaN values
 - `nanmean` -- mean of non-NaN values
+- `nanmedian` -- median of non-NaN values
 - `nanvar` -- variance of non-NaN values
 - `nanstd` -- standard deviation of non-NaN values
 
@@ -22,7 +23,7 @@ import numpy as np
 
 __all__ = [
     'nansum', 'nanmax', 'nanmin', 'nanargmax', 'nanargmin', 'nanmean',
-    'nanvar', 'nanstd'
+    'nanmedian', 'nanvar', 'nanstd'
     ]
 
 
@@ -599,6 +600,85 @@ def nanmean(a, axis=None, dtype=None, out=None, keepdims=False):
         # NaN is the only possible bad value, so no further
         # action is needed to handle bad results.
     return avg
+
+
+def nanmedian(a, axis=None, out=None, overwrite_input=False):
+    """
+    Compute the median along the specified axis, ignoring NaNs.
+
+    Returns the median of the array elements.
+    
+    For all-NaN slices, NaN is returned and a `RuntimeWarning` is raised.
+
+    Parameters
+    ----------
+    a : array_like
+        Input array or object that can be converted to an array.
+    axis : int, optional
+        Axis along which the medians are computed. The default (axis=None)
+        is to compute the median along a flattened version of the array.
+    out : ndarray, optional
+        Alternative output array in which to place the result. It must
+        have the same shape and buffer length as the expected output,
+        but the type (of the output) will be cast if necessary.
+    overwrite_input : bool, optional
+       If True, then allow use of memory of input array (a) for
+       calculations. The input array will be modified by the call to
+       median. This will save memory when you do not need to preserve
+       the contents of the input array. Treat the input as undefined,
+       but it will probably be fully or partially sorted. Default is
+       False. Note that, if `overwrite_input` is True and the input
+       is not already an ndarray, an error will be raised.
+
+    Returns
+    -------
+    median : ndarray
+        A new array holding the result (unless `out` is specified, in
+        which case that array is returned instead).  If the input contains
+        integers, or floats of smaller precision than 64, then the output
+        data-type is float64.  Otherwise, the output data-type is the same
+        as that of the input.
+
+    See Also
+    --------
+    mean, percentile
+
+    Notes
+    -----
+    Given a vector V of length N, the median of V is the middle value of
+    a sorted copy of V, ``V_sorted`` - i.e., ``V_sorted[(N-1)/2]``, when N is
+    odd.  When N is even, it is the average of the two middle values of
+    ``V_sorted``.
+
+    Examples
+    --------
+    >>> a = np.array([[1, 2, np.nan], [4, 5, 6], [np.nan, np.nan, 9]])
+    >>> np.nanmedian(a)
+    4.5
+    >>> np.nanmedian(a, axis=0)
+    array([ 1.5,  5.,  9.])
+    >>> np.nanmedian(a, axis=1)
+    array([ 2.5,  3.5,  6])
+
+    """
+    arr, mask = _replace_nan(a, 0)
+    if mask is None:
+        return np.median(arr, axis=axis, out=out, overwrite_input=overwrite_input)
+
+    isbad = (np.sum(~mask, axis=axis) == 0)
+    if isbad.any():
+        warnings.warn("Median of empty slice", RuntimeWarning)
+        return np.sum(a, axis=axis)
+
+    # np.median computes on the flattened array if axis is None, so if axis is
+    # None, then take advantage of that, otherwise, use masked arrays
+    if axis is None:
+        return np.median(arr[~mask], axis=None, out=out,
+                overwrite_input=overwrite_input)
+    else:
+        return np.ma.median(np.ma.masked_array(arr,
+                mask=mask), axis=axis, out=out,
+                overwrite_input=overwrite_input).data
 
 
 def nanvar(a, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
